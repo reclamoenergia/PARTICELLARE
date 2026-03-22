@@ -303,7 +303,14 @@ class PianoParticellareProcessor:
                     if intersection.isEmpty():
                         continue
 
-                    for part_geom in self._extract_polygon_parts(intersection):
+                    polygon_parts = self._extract_polygon_parts(intersection)
+                    if not polygon_parts:
+                        self.log.warning(
+                            f"Intersezione senza parti poligonali utili: opera {opere_feature.id()} layer {layer.name()}, particella {cadastral_feature.id()}, wkb={QgsWkbTypes.displayString(intersection.wkbType())}."
+                        )
+                        continue
+
+                    for part_geom in polygon_parts:
                         if part_geom.isEmpty() or part_geom.area() <= 0:
                             continue
 
@@ -345,6 +352,10 @@ class PianoParticellareProcessor:
         if working_geometry.isGeosValid():
             return working_geometry
 
+        self.log.warning(
+            f"{feature_type} {feature_id} del layer {layer_name}: geometria non valida rilevata, tentativo di correzione con makeValid()."
+        )
+
         if not self.config.fix_geometries:
             self.log.skipped(
                 f"{feature_type} {feature_id} del layer {layer_name}: geometria non valida e correzione disabilitata."
@@ -366,8 +377,14 @@ class PianoParticellareProcessor:
             return None
 
         if len(polygon_parts) == 1:
+            self.log.add(
+                f"{feature_type} {feature_id} del layer {layer_name}: makeValid() ha prodotto 1 parte poligonale valida."
+            )
             return polygon_parts[0]
 
+        self.log.add(
+            f"{feature_type} {feature_id} del layer {layer_name}: makeValid() ha prodotto {len(polygon_parts)} parti poligonali, avvio merge."
+        )
         merged = QgsGeometry.unaryUnion(polygon_parts)
         if merged.isEmpty() or not merged.isGeosValid():
             self.log.skipped(
@@ -380,23 +397,46 @@ class PianoParticellareProcessor:
         if geometry is None or geometry.isEmpty():
             return []
 
-        result: List[QgsGeometry] = []
-        collection = geometry.asGeometryCollection()
-        if collection:
-            for item in collection:
-                result.extend(self._extract_polygon_parts(item))
-            return result
+        parts: List[QgsGeometry] = []
+        stack: List[QgsGeometry] = [QgsGeometry(geometry)]
 
-        if QgsWkbTypes.geometryType(geometry.wkbType()) != QgsWkbTypes.PolygonGeometry:
-            return []
+        while stack:
+            current = stack.pop()
+            if current is None or current.isEmpty():
+                continue
 
-        if geometry.isMultipart():
-            for item in geometry.asGeometryCollection():
-                if QgsWkbTypes.geometryType(item.wkbType()) == QgsWkbTypes.PolygonGeometry and item.area() > 0:
-                    result.append(item)
-            return result
+            try:
+                geom_type = QgsWkbTypes.geometryType(current.wkbType())
+            except Exception:
+                continue
 
-        return [QgsGeometry(geometry)]
+            if geom_type != QgsWkbTypes.PolygonGeometry:
+                continue
+
+            if current.isMultipart():
+                try:
+                    sub_geoms = current.asGeometryCollection()
+                except Exception:
+                    sub_geoms = []
+
+                if sub_geoms:
+                    for sub in sub_geoms:
+                        if sub is not None and not sub.isEmpty():
+                            stack.append(QgsGeometry(sub))
+                else:
+                    try:
+                        if current.area() > 0:
+                            parts.append(QgsGeometry(current))
+                    except Exception:
+                        continue
+            else:
+                try:
+                    if current.area() > 0:
+                        parts.append(QgsGeometry(current))
+                except Exception:
+                    continue
+
+        return parts
 
     def _write_output(self, output_layer: QgsVectorLayer) -> str:
         save_options = QgsVectorFileWriter.SaveVectorOptions()

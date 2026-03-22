@@ -1,0 +1,18 @@
+[general]
+name=Piano Particellare
+qgisMinimumVersion=3.40
+qgisMaximumVersion=3.99
+description=Genera un layer poligonale di piano particellare tramite intersezione tra opere e particelle catastali.
+version=1.0.0
+author=OpenAI
+email=support@openai.com
+about=Plugin QGIS per generare un piano particellare partendo da layer catastali e layer delle opere, con validazione geometrica, log di processo e output SHP o GPKG.
+category=Vector
+icon=
+homepage=https://openai.com
+tracker=
+repository=
+tags=catasto,intersezione,piano particellare,pyqgis
+experimental=False
+deprecated=False
+hasProcessingProvider=False

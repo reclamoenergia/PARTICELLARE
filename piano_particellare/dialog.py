@@ -48,7 +48,7 @@ class PianoParticellareDialog(QDialog):
         super().__init__(parent or iface.mainWindow())
         self.iface = iface
         self.setWindowTitle("Piano Particellare")
-        self.resize(980, 760)
+        self.resize(1120, 760)
 
         self._build_ui()
         self._connect_signals()
@@ -89,11 +89,13 @@ class PianoParticellareDialog(QDialog):
         buttons_layout.addWidget(self.remove_opere_button)
         buttons_layout.addStretch(1)
 
-        self.opere_table = QTableWidget(0, 4)
-        self.opere_table.setHorizontalHeaderLabels(["Layer", "Diritto/Servitù", "Tipo opera", "ID opera (opz.)"])
+        self.opere_table = QTableWidget(0, 5)
+        self.opere_table.setHorizontalHeaderLabels(
+            ["Layer", "Gruppo opere", "Diritto/Servitù", "Tipo opera", "ID opera (opz.)"]
+        )
         header = self.opere_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
-        for column in (1, 2, 3):
+        for column in (1, 2, 3, 4):
             header.setSectionResizeMode(column, QHeaderView.Stretch)
         self.opere_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.opere_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -249,14 +251,14 @@ class PianoParticellareDialog(QDialog):
         item.setData(self.OPERE_LAYER_ROLE, selected_layer)
         self.opere_table.setItem(row, 0, item)
 
-        for column in (1, 2, 3):
+        for column in (1, 2, 3, 4):
             combo = QComboBox()
             self.opere_table.setCellWidget(row, column, combo)
 
         self._refresh_row_field_combos(row, selected_layer)
 
     def _refresh_row_field_combos(self, row: int, layer: QgsVectorLayer) -> None:
-        for column, allow_empty in ((1, False), (2, False), (3, True)):
+        for column, allow_empty in ((1, False), (2, False), (3, False), (4, True)):
             combo = self.opere_table.cellWidget(row, column)
             if isinstance(combo, QComboBox):
                 self._populate_field_combo(combo, layer, allow_empty=allow_empty)
@@ -291,12 +293,14 @@ class PianoParticellareDialog(QDialog):
             layer = layer_item.data(self.OPERE_LAYER_ROLE) if layer_item else None
             if not layer:
                 continue
-            diritto_combo = self.opere_table.cellWidget(row, 1)
-            tipo_combo = self.opere_table.cellWidget(row, 2)
-            id_combo = self.opere_table.cellWidget(row, 3)
+            gruppo_combo = self.opere_table.cellWidget(row, 1)
+            diritto_combo = self.opere_table.cellWidget(row, 2)
+            tipo_combo = self.opere_table.cellWidget(row, 3)
+            id_combo = self.opere_table.cellWidget(row, 4)
             configs.append(
                 OpereLayerConfig(
                     layer=layer,
+                    gruppo_field=gruppo_combo.currentData() if isinstance(gruppo_combo, QComboBox) else "",
                     diritto_field=diritto_combo.currentData() if isinstance(diritto_combo, QComboBox) else "",
                     tipo_opera_field=tipo_combo.currentData() if isinstance(tipo_combo, QComboBox) else "",
                     id_opera_field=id_combo.currentData() if isinstance(id_combo, QComboBox) else "",
@@ -334,7 +338,7 @@ class PianoParticellareDialog(QDialog):
                 level=Qgis.Success,
                 duration=6,
             )
-            final_message = f"Output creato: {result['output_path']}"
+            final_message = f"Output creato: {result['output_path']}\nExcel creato: {result['excel_path']}"
             if result.get("log_path"):
                 final_message += f"\nLog salvato in: {result['log_path']}"
             QMessageBox.information(self, "Piano Particellare", final_message)
@@ -360,4 +364,3 @@ class PianoParticellareDialog(QDialog):
 
     def _append_message(self, message: str) -> None:
         self.messages_edit.appendPlainText(message)
-
